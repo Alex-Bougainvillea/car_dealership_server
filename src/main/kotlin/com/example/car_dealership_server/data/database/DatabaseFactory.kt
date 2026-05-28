@@ -13,10 +13,14 @@ import org.jetbrains.exposed.sql.transactions.transaction
 object DatabaseFactory {
     fun init(config: ApplicationConfig) {
         val dbConfig = config.config("database")
-        val url = dbConfig.property("url").getString()
-        val user = dbConfig.property("user").getString()
-        val password = dbConfig.property("password").getString()
+        val url = dbConfig.propertyOrNull("url")?.getString() ?: System.getenv("DB_URL")
+        val user = dbConfig.propertyOrNull("user")?.getString() ?: System.getenv("DB_USER")
+        val password = dbConfig.propertyOrNull("password")?.getString() ?: System.getenv("DB_PASSWORD")
         val driver = dbConfig.property("driver").getString()
+
+        require(!url.isNullOrBlank()) { "DB_URL is required" }
+        require(!user.isNullOrBlank()) { "DB_USER is required" }
+        require(!password.isNullOrBlank()) { "DB_PASSWORD is required" }
 
         val hikariConfig = HikariConfig().apply {
             jdbcUrl = url

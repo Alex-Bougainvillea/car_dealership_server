@@ -16,11 +16,13 @@ data class JwtConfig(
     companion object {
         fun fromConfig(config: ApplicationConfig): JwtConfig {
             val jwtConfig = config.config("jwt")
+            val secret = jwtConfig.propertyOrNull("secret")?.getString() ?: System.getenv("JWT_SECRET")
+            require(!secret.isNullOrBlank()) { "JWT_SECRET is required" }
             return JwtConfig(
                 issuer = jwtConfig.property("issuer").getString(),
                 audience = jwtConfig.property("audience").getString(),
                 realm = jwtConfig.property("realm").getString(),
-                secret = jwtConfig.property("secret").getString(),
+                secret = secret,
                 expirationMinutes = jwtConfig.property("expirationMinutes").getString().toLong()
             )
         }
