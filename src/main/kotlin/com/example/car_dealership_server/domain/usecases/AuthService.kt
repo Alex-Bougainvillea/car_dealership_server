@@ -21,6 +21,11 @@ class AuthService(
         return AuthResult.Success(token, user)
     }
 
+    suspend fun ensureUser(username: String, password: String, role: UserRole): User {
+        val hashed = PasswordHasher.hash(password)
+        return userRepository.upsertUser(username, hashed, role)
+    }
+
     suspend fun login(username: String, password: String): AuthResult {
         val userWithPassword = userRepository.findByUsername(username)
             ?: return AuthResult.Error("Invalid credentials")

@@ -21,7 +21,6 @@ class ApplicationTest {
     @Test
     fun registerAndListCars() = testApplication {
         environment { config = ApplicationConfig("application-test.conf") }
-        application { module() }
 
         val registerResponse = client.post("/auth/register") {
             contentType(ContentType.Application.Json)

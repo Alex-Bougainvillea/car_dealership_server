@@ -8,6 +8,7 @@ import com.example.car_dealership_server.domain.models.UserWithPassword
 import com.example.car_dealership_server.domain.repositories.UserRepository
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.update
 
 class UserRepositoryImpl : UserRepository {
     override suspend fun createUser(username: String, passwordHash: String, role: UserRole): User =
@@ -19,6 +20,27 @@ class UserRepositoryImpl : UserRepository {
             } get UsersTable.id
 
             User(id.value, username, role)
+        }
+
+    override suspend fun upsertUser(username: String, passwordHash: String, role: UserRole): User =
+        DatabaseFactory.dbQuery {
+            val existing = UsersTable.select { UsersTable.username eq username }.singleOrNull()
+            if (existing != null) {
+                val id = existing[UsersTable.id].value
+                UsersTable.update({ UsersTable.id eq existing[UsersTable.id] }) {
+                    it[UsersTable.passwordHash] = passwordHash
+                    it[UsersTable.role] = role.name
+                }
+                User(id, username, role)
+            } else {
+                val id = UsersTable.insert {
+                    it[UsersTable.username] = username
+                    it[UsersTable.passwordHash] = passwordHash
+                    it[UsersTable.role] = role.name
+                } get UsersTable.id
+
+                User(id.value, username, role)
+            }
         }
 
     override suspend fun findByUsername(username: String): UserWithPassword? =

@@ -20,7 +20,7 @@ object DatabaseFactory {
 
         require(!url.isNullOrBlank()) { "DB_URL is required" }
         require(!user.isNullOrBlank()) { "DB_USER is required" }
-        require(!password.isNullOrBlank()) { "DB_PASSWORD is required" }
+        require(password != null) { "DB_PASSWORD is required" }
 
         val hikariConfig = HikariConfig().apply {
             jdbcUrl = url
