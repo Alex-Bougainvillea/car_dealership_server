@@ -1,5 +1,6 @@
 package com.example.car_dealership_server.presentation.routes
 
+import com.example.car_dealership_server.domain.repositories.PurchaseRequestCreateResult
 import com.example.car_dealership_server.domain.usecases.PurchaseRequestService
 import com.example.car_dealership_server.presentation.dto.ErrorResponse
 import com.example.car_dealership_server.presentation.dto.PurchaseRequestCreateRequest
@@ -10,6 +11,7 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -25,9 +27,31 @@ fun Route.registerRequestRoutes(service: PurchaseRequestService) {
             post {
                 if (!call.requireAdmin()) return@post
                 val request = call.receive<PurchaseRequestCreateRequest>()
-                val created = service.create(request.clientId, request.carId)
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid client or car"))
-                call.respond(HttpStatusCode.Created, created.toResponse())
+                when (val result = service.create(request.clientId, request.carId)) {
+                    is PurchaseRequestCreateResult.Success -> {
+                        call.respond(HttpStatusCode.Created, result.request.toResponse())
+                    }
+                    PurchaseRequestCreateResult.ClientNotFound -> {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Клиент с ID ${request.clientId} не найден"))
+                    }
+                    PurchaseRequestCreateResult.CarNotFound -> {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Автомобиль с ID ${request.carId} не найден"))
+                    }
+                    PurchaseRequestCreateResult.CarAlreadySold -> {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Автомобиль с ID ${request.carId} уже продан"))
+                    }
+                }
+            }
+            delete("/{id}") {
+                if (!call.requireAdmin()) return@delete
+                val id = call.parameters["id"]?.toIntOrNull()
+                    ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid id"))
+                val deleted = service.delete(id)
+                if (deleted) {
+                    call.respond(HttpStatusCode.NoContent)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Заявка с ID $id не найдена"))
+                }
             }
         }
     }

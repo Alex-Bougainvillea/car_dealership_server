@@ -6,8 +6,11 @@ import com.example.car_dealership_server.data.database.DatabaseFactory
 import com.example.car_dealership_server.data.database.PurchaseRequestsTable
 import com.example.car_dealership_server.domain.models.CarStatus
 import com.example.car_dealership_server.domain.models.PurchaseRequest
+import com.example.car_dealership_server.domain.repositories.PurchaseRequestCreateResult
 import com.example.car_dealership_server.domain.repositories.PurchaseRequestRepository
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
@@ -19,18 +22,18 @@ class PurchaseRequestRepositoryImpl : PurchaseRequestRepository {
         PurchaseRequestsTable.selectAll().map { it.toRequest() }
     }
 
-    override suspend fun createAndMarkSold(clientId: Int, carId: Int): PurchaseRequest? =
+    override suspend fun createAndMarkSold(clientId: Int, carId: Int): PurchaseRequestCreateResult =
         DatabaseFactory.dbQuery {
             val clientExists = ClientsTable.select { ClientsTable.id eq clientId }.any()
             if (!clientExists) {
-                return@dbQuery null
+                return@dbQuery PurchaseRequestCreateResult.ClientNotFound
             }
 
             val carRow = CarsTable.select { CarsTable.id eq carId }.singleOrNull()
-                ?: return@dbQuery null
+                ?: return@dbQuery PurchaseRequestCreateResult.CarNotFound
             val status = CarStatus.valueOf(carRow[CarsTable.status])
             if (status == CarStatus.SOLD) {
-                return@dbQuery null
+                return@dbQuery PurchaseRequestCreateResult.CarAlreadySold
             }
 
             CarsTable.update({ CarsTable.id eq carId }) {
@@ -44,7 +47,21 @@ class PurchaseRequestRepositoryImpl : PurchaseRequestRepository {
                 it[PurchaseRequestsTable.createdAt] = createdAt
             } get PurchaseRequestsTable.id
 
-            PurchaseRequest(id.value, clientId, carId, createdAt)
+            PurchaseRequestCreateResult.Success(PurchaseRequest(id.value, clientId, carId, createdAt))
+        }
+
+    override suspend fun deleteAndMarkAvailable(id: Int): Boolean =
+        DatabaseFactory.dbQuery {
+            val requestRow = PurchaseRequestsTable.select { PurchaseRequestsTable.id eq id }.singleOrNull()
+                ?: return@dbQuery false
+            val carId = requestRow[PurchaseRequestsTable.carId].value
+
+            PurchaseRequestsTable.deleteWhere { PurchaseRequestsTable.id eq id }
+            CarsTable.update({ CarsTable.id eq carId }) {
+                it[CarsTable.status] = CarStatus.AVAILABLE.name
+            }
+
+            true
         }
 
     private fun ResultRow.toRequest(): PurchaseRequest =
